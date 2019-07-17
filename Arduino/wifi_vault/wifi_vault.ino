@@ -31,6 +31,12 @@ struct BeamRequest
   // something
 };
 
+void printDebug(const char* text) {
+  if (DEBUG) {
+    Serial.println(text);
+  }
+}
+
 int getEE(int addr, int def)
 {
   int val = def;
@@ -101,19 +107,13 @@ void test() {
   writeEEPROMObject(0, customVar);
 
   for (int i = 0; i < EEPROM_SIZE; i += sizeof(PasswordObject)) {
-    if (DEBUG) {
-      Serial.print(i);
-      Serial.print(" : ");
-    }
+    printDebug(i);
     int value = getEE(i, -1);
-    //Serial.println(value);
     if (value != -1) {
       PasswordObject obj = readEEPROMObject(i);
-      if (DEBUG) {
-        Serial.println("Read custom object from EEPROM: ");
-        Serial.println(obj.name);
-        Serial.println(obj.password);
-      }
+      printDebug("Read custom object from EEPROM: ");
+      printDebug(obj.name);
+      printDebug(obj.password);
     }
   }
 }
@@ -138,8 +138,7 @@ void request_authorization() {
 
 boolean checkForKey(const char* key) {
   if (!mLastRedJsonObject.containsKey(key)) {
-    if (DEBUG)
-      Serial.println("wrong json format for request!!!");
+    printDebug("wrong json format for request!!!");
     HTTP.send(400, "application/json", "{\"success\" : false}");
     return false;
   }
@@ -153,17 +152,14 @@ void parseRequestBody() {
   StaticJsonDocument<JSON_OBJECT_SIZE(10)> doc;
   String post_body = HTTP.arg("plain");
 
-  if (DEBUG) {
-    Serial.print("HTTP Method: ");
-    Serial.println(HTTP.method());
-    Serial.println(post_body);
-  }
+  printDebug("HTTP Method: ");
+  printDebug(HTTP.method());
+  printDebug(post_body);
 
   DeserializationError error = deserializeJson(doc, post_body);
 
   if (error) {
-    if (DEBUG)
-      Serial.println("error in parsin json body");
+    printDebug("error in parsin json body");
     HTTP.send(400, "application/json", "{\"success\" : false}");
   }
 
@@ -200,13 +196,11 @@ void post_psw() {
     return;
   }
 
-  if (DEBUG)
-    Serial.print("Searching for empty address:");
+  printDebug("Searching for empty address:");
   int address_value = findEmptyAddress();
 
   if (address_value != NULL_ADDRESS) {
-    if (DEBUG)
-      Serial.println(address_value);
+    printDebug(address_value);
 
     PasswordObject customVar;
     strcpy(customVar.name, mLastRedJsonObject["key"]);
@@ -216,8 +210,7 @@ void post_psw() {
 
     HTTP.send(200, "application/json", "{\"success\" : true}");
   } else {
-    if (DEBUG)
-      Serial.println("No more space in EEPROM!!!");
+    printDebug("No more space in EEPROM!!!");
     HTTP.send(400, "application/json", "{\"success\" : false}");
   }
 }
@@ -237,7 +230,7 @@ void beam_details() {
   delay(100);
   Serial.println(beam.psw);
   delay(100);
-  
+
   HTTP.send(200, "application/json", "{\"success\" : true}");
 }
 
@@ -257,8 +250,8 @@ void delete_psw() {
 void config_rest_server_routing() {
   if (WiFi.waitForConnectResult() == WL_CONNECTED) {
 
-    if (DEBUG)
-      Serial.printf("Starting HTTP...\n");
+    printDebug("Starting HTTP...");
+    
     HTTP.on("/index.html", HTTP_GET, []() {
       HTTP.send(200, "text/plain", "{\"deviceID\":\"<replace with own id>\"}");
     });
@@ -273,8 +266,7 @@ void config_rest_server_routing() {
 
     HTTP.begin();
 
-    if (DEBUG)
-      Serial.printf("Starting SSDP...\n");
+    printDebug("Starting SSDP...");
     SSDP.setSchemaURL("description.xml");
     SSDP.setHTTPPort(1900);
     SSDP.setName("WiFi Vault");
@@ -288,11 +280,9 @@ void config_rest_server_routing() {
     //SSDP.setDeviceType("upnp:rootdevice");
     SSDP.setDeviceType("urn:schemas-upnp-org:device:WifiVault:1");
     SSDP.begin();
-    if (DEBUG)
-      Serial.printf("Ready!\n");
+    printDebug("Ready");
   } else {
-    if (DEBUG)
-      Serial.printf("WiFi Failed\n");
+    printDebug("WiFi Failed");
     while (1) {
       delay(100);
     }
