@@ -3,120 +3,21 @@
 #include <ESP8266SSDP.h>
 #include <WiFiManager.h>
 #include <DNSServer.h>
+#include "EEPROMManager.h"
+#include "DebugSerial.h"
+#include "BeamRequest.cpp"
 #include <ArduinoJson.h>
-#include <EEPROM.h>
+
 
 int addr = 0;
-const int EEPROM_SIZE = 400;
-const bool DEBUG = false;
-const int EMPRY_ADDRESS = -1;
-const int NULL_ADDRESS = -2;
-const int EMPTY_EEPROM_CELL = 255;
+EEPROMManager eepromManager;
+DebugSerial debugSerial;
 // compute the required size
 const size_t CAPACITY = JSON_ARRAY_SIZE(25);
-const char* www_username = "<replace with BASIC USERNAME>";
-const char* www_password = "<replace with BASIC PASSWORD>";
+const char* www_username = "admin";
+const char* www_password = "esp8266";
 JsonObject mLastRedJsonObject;
 ESP8266WebServer HTTP(1900);
-
-struct PasswordObject {
-  char name[20];
-  char password[20];
-};
-
-struct BeamRequest
-{
-  const char* username;
-  const char* psw;
-  // something
-};
-
-void printDebug(const char* text) {
-  if (DEBUG) {
-    Serial.println(text);
-  }
-}
-
-int getEE(int addr, int def)
-{
-  int val = def;
-  EEPROM.begin(EEPROM_SIZE);
-  EEPROM.get(addr, val);
-  EEPROM.commit();
-  EEPROM.end();
-  if (val == 255) return def;
-  return val;
-}
-
-int findEmptyAddress() {
-  for (int i = 0; i < EEPROM_SIZE; i += sizeof(PasswordObject)) {
-    int status = getEE(i, EMPRY_ADDRESS);
-    if (status == EMPRY_ADDRESS) {
-      return i;
-    }
-  }
-
-  return NULL_ADDRESS;
-}
-
-PasswordObject readEEPROMObject(int addr) {
-  PasswordObject customVar; //Variable to store custom object read from EEPROM.
-  EEPROM.begin(EEPROM_SIZE);
-  EEPROM.get(addr, customVar);
-  EEPROM.commit();
-  EEPROM.end();
-
-  return customVar;
-}
-
-void clearEEPROM() {
-  EEPROM.begin(EEPROM_SIZE);
-  // write a 0 to all 512 bytes of the EEPROM
-  for (int i = 0; i < EEPROM_SIZE; i++) {
-    EEPROM.write(i, 255);
-  }
-
-  // turn the LED on when we're done
-  pinMode(13, OUTPUT);
-  digitalWrite(13, HIGH);
-  EEPROM.end();
-}
-
-void clearEEPROMAddr(int addr) {
-  EEPROM.begin(EEPROM_SIZE);
-  EEPROM.put(addr, EMPTY_EEPROM_CELL);
-  EEPROM.commit();
-  EEPROM.end();
-}
-
-void writeEEPROMObject(int addr, PasswordObject customVar) {
-  EEPROM.begin(EEPROM_SIZE);
-  EEPROM.put(addr, customVar);
-  EEPROM.commit();
-  EEPROM.end();
-}
-
-void test() {
-  clearEEPROM();
-
-  PasswordObject customVar = {
-    "1234567891234567891",
-    "1234567891234567891"
-  };
-
-  writeEEPROMObject(0, customVar);
-
-  for (int i = 0; i < EEPROM_SIZE; i += sizeof(PasswordObject)) {
-    printDebug(i);
-    int value = getEE(i, -1);
-    if (value != -1) {
-      PasswordObject obj = readEEPROMObject(i);
-      printDebug("Read custom object from EEPROM: ");
-      printDebug(obj.name);
-      printDebug(obj.password);
-    }
-  }
-}
 
 
 void setup() {
@@ -126,8 +27,6 @@ void setup() {
   wifiManager.autoConnect("WifiVault");
 
   config_rest_server_routing();
-
-  //test();
 }
 
 void request_authorization() {
@@ -138,7 +37,7 @@ void request_authorization() {
 
 boolean checkForKey(const char* key) {
   if (!mLastRedJsonObject.containsKey(key)) {
-    printDebug("wrong json format for request!!!");
+    debugSerial.printToSerial("wrong json format for request!!!");
     HTTP.send(400, "application/json", "{\"success\" : false}");
     return false;
   }
@@ -149,17 +48,13 @@ void parseRequestBody() {
 
   request_authorization();
 
-  StaticJsonDocument<JSON_OBJECT_SIZE(10)> doc;
+  StaticJsonDocument<200> doc;
   String post_body = HTTP.arg("plain");
-
-  printDebug("HTTP Method: ");
-  printDebug(HTTP.method());
-  printDebug(post_body);
 
   DeserializationError error = deserializeJson(doc, post_body);
 
   if (error) {
-    printDebug("error in parsin json body");
+    debugSerial.printToSerial("error in parsin json body");
     HTTP.send(400, "application/json", "{\"success\" : false}");
   }
 
@@ -176,8 +71,8 @@ void get_psw() {
 
   const int addr = mLastRedJsonObject["addr"];
 
-  PasswordObject obj = readEEPROMObject(addr);
-  StaticJsonDocument<JSON_OBJECT_SIZE(10)> jsonResponseDoc;
+  PasswordObject obj = eepromManager.readEEPROMObject(addr);
+  StaticJsonDocument<200> jsonResponseDoc;
 
   jsonResponseDoc["addr"] = addr;
   jsonResponseDoc["key"] = obj.name;
@@ -196,21 +91,21 @@ void post_psw() {
     return;
   }
 
-  printDebug("Searching for empty address:");
-  int address_value = findEmptyAddress();
+  debugSerial.printToSerial("Searching for empty address:");
 
-  if (address_value != NULL_ADDRESS) {
-    printDebug(address_value);
+  int address_value = eepromManager.findEmptyAddress();
+
+  if (address_value != eepromManager.NULL_ADDRESS) {
 
     PasswordObject customVar;
     strcpy(customVar.name, mLastRedJsonObject["key"]);
     strcpy(customVar.password, mLastRedJsonObject["value"]);
 
-    writeEEPROMObject(address_value, customVar);
+    eepromManager.writeEEPROMObject(address_value, customVar);
 
     HTTP.send(200, "application/json", "{\"success\" : true}");
   } else {
-    printDebug("No more space in EEPROM!!!");
+    debugSerial.printToSerial("No more space in EEPROM!!!");
     HTTP.send(400, "application/json", "{\"success\" : false}");
   }
 }
@@ -224,12 +119,14 @@ void beam_details() {
 
   BeamRequest beam;
   beam.username = mLastRedJsonObject["user"];
-  beam.psw = mLastRedJsonObject["psw"];
+  beam.password = mLastRedJsonObject["pass"];
 
   Serial.println(beam.username);
-  delay(100);
-  Serial.println(beam.psw);
-  delay(100);
+  delay(200);
+  Serial.flush();
+  Serial.println(beam.password);
+  delay(200);
+  Serial.flush();
 
   HTTP.send(200, "application/json", "{\"success\" : true}");
 }
@@ -243,17 +140,17 @@ void delete_psw() {
   }
 
   //if everything is fine we will process the request here
-  clearEEPROMAddr(mLastRedJsonObject["addr"]);
+  eepromManager.clearEEPROMAddr(mLastRedJsonObject["addr"]);
   HTTP.send(200, "application/json", "{\"success\" : true}");
 }
 
 void config_rest_server_routing() {
   if (WiFi.waitForConnectResult() == WL_CONNECTED) {
 
-    printDebug("Starting HTTP...");
-    
+    debugSerial.printToSerial("Starting HTTP...\n");
+
     HTTP.on("/index.html", HTTP_GET, []() {
-      HTTP.send(200, "text/plain", "{\"deviceID\":\"<replace with own id>\"}");
+      HTTP.send(200, "text/plain", "{\"deviceID\":\"38323636-4558-4dda-9188-cda0e6ee2e9a\"}");
     });
     HTTP.on("/description.xml", HTTP_GET, []() {
       SSDP.schema(HTTP.client());
@@ -266,23 +163,23 @@ void config_rest_server_routing() {
 
     HTTP.begin();
 
-    printDebug("Starting SSDP...");
+    debugSerial.printToSerial("Starting SSDP...\n");
     SSDP.setSchemaURL("description.xml");
     SSDP.setHTTPPort(1900);
     SSDP.setName("WiFi Vault");
-    SSDP.setSerialNumber("<replace with serial number>");
+    SSDP.setSerialNumber("528553529365");
     SSDP.setURL("index.html");
     SSDP.setModelName("WiFi Vault");
-    SSDP.setModelNumber("<replace with model number>");
+    SSDP.setModelNumber("929000226503");
     SSDP.setModelURL("http://www.google.bg");
     SSDP.setManufacturer("Dimitar Ivanov");
     SSDP.setManufacturerURL("http://www.google.bg");
     //SSDP.setDeviceType("upnp:rootdevice");
     SSDP.setDeviceType("urn:schemas-upnp-org:device:WifiVault:1");
     SSDP.begin();
-    printDebug("Ready");
+    debugSerial.printToSerial("Ready!\n");
   } else {
-    printDebug("WiFi Failed");
+    debugSerial.printToSerial("WiFi Failed\n");
     while (1) {
       delay(100);
     }
