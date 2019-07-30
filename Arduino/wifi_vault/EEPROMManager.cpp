@@ -59,32 +59,3 @@ void EEPROMManager::writeEEPROMObject(int addr, PasswordObject customVar) {
   EEPROM.commit();
   EEPROM.end();
 }
-
-
-//void test() {
-//  eepromManager.clearEEPROM();
-//
-//  PasswordObject customVar = {
-//    "1234567891234567891",
-//    "1234567891234567891"
-//  };
-//
-//  eepromManager.writeEEPROMObject(0, customVar);
-//
-//  for (int i = 0; i < EEPROM_SIZE; i += sizeof(PasswordObject)) {
-//    if (DEBUG) {
-//      Serial.print(i);
-//      Serial.print(" : ");
-//    }
-//    int value = eepromManager.getEE(i, -1);
-//    //Serial.println(value);
-//    if (value != -1) {
-//      PasswordObject obj = readEEPROMObject(i);
-//      if (DEBUG) {
-//        Serial.println("Read custom object from EEPROM: ");
-//        Serial.println(obj.name);
-//        Serial.println(obj.password);
-//      }
-//    }
-//  }
-//}

@@ -7,16 +7,14 @@
 #include "DebugSerial.h"
 #include "BeamRequest.cpp"
 #include <ArduinoJson.h>
+#include <stdlib.h>
 
-
-int addr = 0;
 EEPROMManager eepromManager;
 DebugSerial debugSerial;
-// compute the required size
-const size_t CAPACITY = JSON_ARRAY_SIZE(25);
-const char* www_username = "admin";
-const char* www_password = "esp8266";
+const char* www_username = "<set here>";
+const char* www_password = "<set here>";
 JsonObject mLastRedJsonObject;
+StaticJsonDocument<200> doc;
 ESP8266WebServer HTTP(1900);
 
 
@@ -48,8 +46,9 @@ void parseRequestBody() {
 
   request_authorization();
 
-  StaticJsonDocument<200> doc;
+  doc.clear();
   String post_body = HTTP.arg("plain");
+  //Serial.println(post_body);
 
   DeserializationError error = deserializeJson(doc, post_body);
 
@@ -72,13 +71,13 @@ void get_psw() {
   const int addr = mLastRedJsonObject["addr"];
 
   PasswordObject obj = eepromManager.readEEPROMObject(addr);
-  StaticJsonDocument<200> jsonResponseDoc;
+  StaticJsonDocument<100> jsonResponseDoc;
 
   jsonResponseDoc["addr"] = addr;
   jsonResponseDoc["key"] = obj.name;
   jsonResponseDoc["value"] = obj.password;
 
-  char JSONmessageBuffer[200];
+  char JSONmessageBuffer[100];
   serializeJsonPretty(jsonResponseDoc, JSONmessageBuffer);
   HTTP.send(200, "application/json", JSONmessageBuffer);
 }
@@ -98,8 +97,9 @@ void post_psw() {
   if (address_value != eepromManager.NULL_ADDRESS) {
 
     PasswordObject customVar;
-    strcpy(customVar.name, mLastRedJsonObject["key"]);
-    strcpy(customVar.password, mLastRedJsonObject["value"]);
+
+    strlcpy(customVar.name, mLastRedJsonObject["key"] | "", sizeof(customVar.name));
+    strlcpy(customVar.password, mLastRedJsonObject["value"] | "", sizeof(customVar.password));
 
     eepromManager.writeEEPROMObject(address_value, customVar);
 
@@ -108,6 +108,12 @@ void post_psw() {
     debugSerial.printToSerial("No more space in EEPROM!!!");
     HTTP.send(400, "application/json", "{\"success\" : false}");
   }
+}
+
+void sendDataSerial(const char* text) {
+  Serial.println(text);
+  delay(200);
+  Serial.flush();
 }
 
 void beam_details() {
@@ -121,12 +127,8 @@ void beam_details() {
   beam.username = mLastRedJsonObject["user"];
   beam.password = mLastRedJsonObject["pass"];
 
-  Serial.println(beam.username);
-  delay(200);
-  Serial.flush();
-  Serial.println(beam.password);
-  delay(200);
-  Serial.flush();
+  sendDataSerial(beam.username);
+  sendDataSerial(beam.password);
 
   HTTP.send(200, "application/json", "{\"success\" : true}");
 }
@@ -150,7 +152,7 @@ void config_rest_server_routing() {
     debugSerial.printToSerial("Starting HTTP...\n");
 
     HTTP.on("/index.html", HTTP_GET, []() {
-      HTTP.send(200, "text/plain", "{\"deviceID\":\"38323636-4558-4dda-9188-cda0e6ee2e9a\"}");
+      HTTP.send(200, "text/plain", "{\"deviceID\":\"<set here>\"}");
     });
     HTTP.on("/description.xml", HTTP_GET, []() {
       SSDP.schema(HTTP.client());
@@ -167,10 +169,10 @@ void config_rest_server_routing() {
     SSDP.setSchemaURL("description.xml");
     SSDP.setHTTPPort(1900);
     SSDP.setName("WiFi Vault");
-    SSDP.setSerialNumber("528553529365");
+    SSDP.setSerialNumber("<set here>");
     SSDP.setURL("index.html");
     SSDP.setModelName("WiFi Vault");
-    SSDP.setModelNumber("929000226503");
+    SSDP.setModelNumber("<set here>");
     SSDP.setModelURL("http://www.google.bg");
     SSDP.setManufacturer("Dimitar Ivanov");
     SSDP.setManufacturerURL("http://www.google.bg");
