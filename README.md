@@ -5,10 +5,10 @@ This is a open source project with ESP8266 that store key value pair (key = max 
 ![image](https://i.ibb.co/bWyPmk1/Screenshot-2019-07-22-at-10-46-30.png)
 
 # How does it work ?
-  When the device is powered on a webserver is started to setup WiFi connection.
-  After that SSDP service is started.
-  Mobile application find the device over SSDP and bind with the authentication header provided in the constants
-  From the application you can add new key,value pair data the real value is encrypted and its stored on the phone the token    contains only a small portion of the key to unlock it, other factors are your fingerprint, deviceID and encryption method.
+  * When the device is powered on a webserver is started to setup WiFi connection.
+  * After that SSDP service is started.
+  * Mobile application find the device over SSDP and bind with the authentication header provided in the constants
+  * From the application you can add new key,value pair data the real value is encrypted and its stored on the phone the token    contains only a small portion of the key to unlock it, other factors are your fingerprint, deviceID and encryption method.
   
 
 # Brief story
