@@ -3,6 +3,7 @@ This is a open source project with ESP8266 that store key value pair (key = max 
 
 # PCB Preview
 ![image](https://i.ibb.co/bWyPmk1/Screenshot-2019-07-22-at-10-46-30.png)
+
 Information for schematic files and PCB can be found here: https://easyeda.com/dimitarivanovit/wifivault
 
 # How does it work ?
